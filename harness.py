@@ -42,7 +42,7 @@ import streamlit as st
 from openai import AsyncOpenAI, OpenAI
 
 APP_TITLE = "Pliny Agent Harness (Free)"
-OB = "https://openrouter.ai/api/v1"
+OB = "https://integrate.api.nvidia.com/v1"
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                        "forge_history.db")
 
