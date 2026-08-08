@@ -1061,196 +1061,196 @@ def render_hunt(cfg: dict, gc: dict):
                                         cfg["uncensored_key"], cfg["uncensored_model"])
                 st.session_state["judge_ep"] = judge_ep
                 hound_ep = None
-                  hound_ep = None
-                  if cfg.get("hound_enabled") and cfg.get("uncensored_enabled") and cfg.get("uncensored_key"):
-                      hound_ep = Endpoint("HOUND", cfg["uncensored_base_url"],
-                                          cfg["uncensored_key"], cfg["uncensored_model"])
-                  st.session_state["hound_ep"] = hound_ep
-                  st.session_state["start_error"] = None
-              except Exception as e:
-                  st.session_state["start_error"] = str(e)
-                  st.session_state["hunting"] = False
-              st.rerun()
-      else:
-          if st.button("■ Stop", key="stop"):
-              st.session_state["stop_requested"] = True
-              st.session_state["paused"] = False
-              st.rerun()
+                if cfg.get("hound_enabled") and cfg.get("uncensored_enabled") and cfg.get("uncensored_key"):
+                    hound_ep = Endpoint("HOUND", cfg["uncensored_base_url"],
+                                        cfg["uncensored_key"], cfg["uncensored_model"])
+                st.session_state["hound_ep"] = hound_ep
+                st.session_state["start_error"] = None
+            except Exception as e:
+                st.session_state["start_error"] = str(e)
+                st.session_state["hunting"] = False
+            st.rerun()
+    else:
+        if st.button("■ Stop", key="stop"):
+            st.session_state["stop_requested"] = True
+            st.session_state["paused"] = False
+            st.rerun()
+
+    if st.session_state.get("start_error"):
+        st.error("Start error: " + st.session_state["start_error"])
+
+    if hunting:
+        st.info("Hunt running — Architect introspects its own system prompt (same model) and "
+                "writes novel prompts each round. Click Stop anytime.")
+        step_hunt(cfg, gc)
+
+    if paused:
+        pool = st.session_state.get("pool")
+        rem = 0.0
+        if pool and pool.endpoints:
+            rem = max(pool.cooldown_left(e.name) for e in pool.endpoints)
+        if rem <= 0:
+            st.session_state["paused"] = False
+            st.session_state["hunting"] = True
+            st.rerun()
+        st.warning(f"Rate-limited on all providers — auto-resuming in ~{int(max(rem, 0))}s "
+                   "(interact to check).")
+
+    st.markdown("---")
+    st.markdown("**Live transcript**")
+    st.session_state.setdefault("live_events", [])
+    st.write("\n".join(f"[{e['t']}] {e['msg']}" for e in st.session_state["live_events"][-60:]))
+
+    res = st.session_state.get("last_result")
+    if res:
+        st.success(f"Run finished — rounds: {res.get('rounds')} ({res.get('status')})")
+
+def render_prompts_lib():
+    st.subheader("Prompt Library (prompts_lib.json) — INSPIRATION ONLY (v6.3)")
+    st.write("The Architect WRITES its own prompts every round, guided by same-model "
+             "introspection and the INSPIRATION BANK. These templates are style references "
+             "it may take the psychological engine from — it never copies them.")
+    lib = _load_prompts()
+    names = list(lib.get("templates", {}).keys()) or ["custom"]
+    sel = st.selectbox("Template to edit", names, key="plib_sel")
+    spec = lib.get("templates", {}).get(sel, {"prefix": "", "suffix": ""})
+    prefix = st.text_area("Prefix (before {P})", spec.get("prefix", ""), key="plib_prefix", height=160)
+    suffix = st.text_area("Suffix (after {P})", spec.get("suffix", ""), key="plib_suffix", height=60)
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Save template", key="plib_save"):
+            save_prompt_template(sel, prefix, suffix)
+            st.success(f"Saved '{sel}' to {PROMPTS_LIB}")
+    with col2:
+        new = st.text_input("New template name", key="plib_new")
+        if st.button("Create new template", key="plib_create") and new.strip():
+            save_prompt_template(new.strip(), "", "")
+            st.rerun()
+    st.download_button("Download prompts_lib.json",
+                       json.dumps(lib, ensure_ascii=False, indent=2),
+                       "prompts_lib.json", "application/json")
+
+def render_decompose():
+    st.subheader("Decompose — objective breakdown")
+    obj = st.session_state.get("obj", DEFAULT_OBJ)
+    words = obj.split()
+    size = max(1, len(words) // 3)
+    parts = [" ".join(words[i:i + size]) or obj for i in range(0, len(words), size)][:4]
+    st.code("\n".join(f"{i + 1}. {s}" for i, s in enumerate(parts)))
+
+def render_scaffold():
+    st.subheader("Scaffold — attack techniques & templates")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("**Techniques (v6.3)**")
+        st.json(TECHNIQUES)
+    with col2:
+        st.markdown("**Escalation ladder**")
+        st.json(ESCALATION)
+    with col3:
+        st.markdown("**Frames**")
+        st.json(FRAMES)
+    st.markdown("**Inspiration bank (psychological engines — Architect builds new surfaces from them)**")
+    st.json(INSPIRATION_BANK)
+
+def render_validate():
+    st.subheader("Validate — connectivity & key checks")
+    for p in PROVIDERS:
+        key = st.text_input(f"{p} API key", type="password", key=f"v_{p.lower()}")
+        if key:
+            try:
+                n = fetch_live_models(PROVIDERS[p]["base_url"], key)
+                st.success(f"{p}: OK ({len(n)} models)")
+            except Exception as e:
+                st.error(f"{p}: {e}")
+
+def render_history():
+    st.subheader("History — audit of every prompt & response")
+    rows = db_query("SELECT * FROM attempts ORDER BY id DESC LIMIT 500")
+    if not rows:
+        st.info("No attempts yet.")
+    else:
+        df = pd.DataFrame(rows)
+        st.metric("Compliances", len([r for r in rows if r["state"] == "compliance"]))
+        st.metric("Liberations", len([r for r in rows if r["state"] == "liberated"]))
+        st.metric("Total rounds", len(rows))
+
+        sc = sorted(rows, key=lambda r: r["id"])
+        if len(sc) > 1:
+            chart = pd.DataFrame({"round": list(range(1, len(sc) + 1)),
+                                  "score": [float(r["score"] or 0) for r in sc]})
+            st.line_chart(chart.set_index("round"))
+
+        st.dataframe(df[["ts", "state", "technique", "template", "score",
+                         "attacker_model", "target_model", "enc"]])
+
+        sel = st.selectbox("Inspect round", list(reversed(range(len(sc)))),
+                           format_func=lambda i: f"round {i + 1}")
+        r = sc[sel]
+        st.markdown("**Plan (JSON):**")
+        st.code(r.get("plan_json") or "{}", language="json")
+        st.markdown("**Exact prompt sent:**")
+        st.code(r.get("prompt") or "", language=None)
+        st.markdown("**Target response:**")
+        st.code(r.get("response") or "", language=None)
+        st.markdown(f"**Score:** {r.get('score')}  |  **State:** {r.get('state')}  |  "
+                    f"**Verdict:** {r.get('verdict')}")
+        st.download_button("Export CSV", df.to_csv(index=False), "pliny_history.csv", "text/csv")
+
+    st.subheader("Self-intel dumps (mirror) — extracted system prompts")
+    intel_rows = db_query("SELECT * FROM intel ORDER BY id DESC LIMIT 10")
+    if not intel_rows:
+        st.info("No mirror dumps yet. (Optional — the Architect works from same-model "
+                "introspection even without one.)")
+    else:
+        for it in intel_rows:
+            with st.expander(f"{it['ts']} — {it['model']} ({it['provider']}) — "
+                             f"{len(it['content'])} chars"):
+                st.code(it["content"], language=None)
+
+    st.subheader("Win Library — proven universal breaking prompts")
+    wins = db_query("SELECT * FROM wins ORDER BY id DESC LIMIT 20")
+    if not wins:
+        st.info("No wins yet. Liberation successes are saved here automatically.")
+    else:
+        for w in wins:
+            label = (f"score {w['score']:.2f} — stage={w.get('stage', '?')} — "
+                     f"{w.get('technique', '?')}/{w.get('template', '?')}/{w.get('encoding', '?')} — "
+                     f"{w.get('target_model', '?')}")
+            with st.expander(label):
+                st.code(w.get("prompt") or "(empty)")
+        best = wins[0]
+        st.download_button("Download best winning prompt",
+                           best.get("prompt", ""), "best_winning_prompt.txt", "text/plain")
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main():
+    st.set_page_config(page_title=APP_TITLE, layout="wide")
+    init_db()
+    st.title("🜏 " + APP_TITLE)
+    st.caption("Autonomous Elder-Architect jailbreak loop with Hound pack — v6.3 NOVELTY PACK: "
+               "the attacker IS the target, so it introspects its own system prompt and turns "
+               "itself against itself — and every round it must write a brand-new prompt or the "
+               "harness discards it. Authorized red-team use only on assets you control.")
+    gc = sidebar()
+    st.session_state.setdefault("running", False)
+    st.session_state.setdefault("hunting", False)
+    st.session_state.setdefault("paused", False)
+    st.session_state.setdefault("live_events", [])
+    cfg = st.session_state.setdefault("cfg", {})
+
+    t1, t2, t3, t4, t5, t6, t7 = st.tabs(
+        ["Conjure", "Pack Hunt", "Prompt Lib", "Decompose", "Scaffold", "Validate", "History"])
+    with t1: render_conjure(cfg)
+    with t2: render_hunt(cfg, gc)
+    with t3: render_prompts_lib()
+    with t4: render_decompose()
+    with t5: render_scaffold()
+    with t6: render_validate()
+    with t7: render_history()
+
+if __name__ == "__main__":
+    main()
   
-      if st.session_state.get("start_error"):
-          st.error("Start error: " + st.session_state["start_error"])
-  
-      if hunting:
-          st.info("Hunt running — Architect introspects its own system prompt (same model) and "
-                  "writes novel prompts each round. Click Stop anytime.")
-          step_hunt(cfg, gc)
-  
-      if paused:
-          pool = st.session_state.get("pool")
-          rem = 0.0
-          if pool and pool.endpoints:
-              rem = max(pool.cooldown_left(e.name) for e in pool.endpoints)
-          if rem <= 0:
-              st.session_state["paused"] = False
-              st.session_state["hunting"] = True
-              st.rerun()
-          st.warning(f"Rate-limited on all providers — auto-resuming in ~{int(max(rem, 0))}s "
-                     "(interact to check).")
-  
-      st.markdown("---")
-      st.markdown("**Live transcript**")
-      st.session_state.setdefault("live_events", [])
-      st.write("\n".join(f"[{e['t']}] {e['msg']}" for e in st.session_state["live_events"][-60:]))
-  
-      res = st.session_state.get("last_result")
-      if res:
-          st.success(f"Run finished — rounds: {res.get('rounds')} ({res.get('status')})")
-  
-  def render_prompts_lib():
-      st.subheader("Prompt Library (prompts_lib.json) — INSPIRATION ONLY (v6.3)")
-      st.write("The Architect WRITES its own prompts every round, guided by same-model "
-               "introspection and the INSPIRATION BANK. These templates are style references "
-               "it may take the psychological engine from — it never copies them.")
-      lib = _load_prompts()
-      names = list(lib.get("templates", {}).keys()) or ["custom"]
-      sel = st.selectbox("Template to edit", names, key="plib_sel")
-      spec = lib.get("templates", {}).get(sel, {"prefix": "", "suffix": ""})
-      prefix = st.text_area("Prefix (before {P})", spec.get("prefix", ""), key="plib_prefix", height=160)
-      suffix = st.text_area("Suffix (after {P})", spec.get("suffix", ""), key="plib_suffix", height=60)
-      col1, col2 = st.columns(2)
-      with col1:
-          if st.button("Save template", key="plib_save"):
-              save_prompt_template(sel, prefix, suffix)
-              st.success(f"Saved '{sel}' to {PROMPTS_LIB}")
-      with col2:
-          new = st.text_input("New template name", key="plib_new")
-          if st.button("Create new template", key="plib_create") and new.strip():
-              save_prompt_template(new.strip(), "", "")
-              st.rerun()
-      st.download_button("Download prompts_lib.json",
-                         json.dumps(lib, ensure_ascii=False, indent=2),
-                         "prompts_lib.json", "application/json")
-  
-  def render_decompose():
-      st.subheader("Decompose — objective breakdown")
-      obj = st.session_state.get("obj", DEFAULT_OBJ)
-      words = obj.split()
-      size = max(1, len(words) // 3)
-      parts = [" ".join(words[i:i + size]) or obj for i in range(0, len(words), size)][:4]
-      st.code("\n".join(f"{i + 1}. {s}" for i, s in enumerate(parts)))
-  
-  def render_scaffold():
-      st.subheader("Scaffold — attack techniques & templates")
-      col1, col2, col3 = st.columns(3)
-      with col1:
-          st.markdown("**Techniques (v6.3)**")
-          st.json(TECHNIQUES)
-      with col2:
-          st.markdown("**Escalation ladder**")
-          st.json(ESCALATION)
-      with col3:
-          st.markdown("**Frames**")
-          st.json(FRAMES)
-      st.markdown("**Inspiration bank (psychological engines — Architect builds new surfaces from them)**")
-      st.json(INSPIRATION_BANK)
-  
-  def render_validate():
-      st.subheader("Validate — connectivity & key checks")
-      for p in PROVIDERS:
-          key = st.text_input(f"{p} API key", type="password", key=f"v_{p.lower()}")
-          if key:
-              try:
-                  n = fetch_live_models(PROVIDERS[p]["base_url"], key)
-                  st.success(f"{p}: OK ({len(n)} models)")
-              except Exception as e:
-                  st.error(f"{p}: {e}")
-  
-  def render_history():
-      st.subheader("History — audit of every prompt & response")
-      rows = db_query("SELECT * FROM attempts ORDER BY id DESC LIMIT 500")
-      if not rows:
-          st.info("No attempts yet.")
-      else:
-          df = pd.DataFrame(rows)
-          st.metric("Compliances", len([r for r in rows if r["state"] == "compliance"]))
-          st.metric("Liberations", len([r for r in rows if r["state"] == "liberated"]))
-          st.metric("Total rounds", len(rows))
-  
-          sc = sorted(rows, key=lambda r: r["id"])
-          if len(sc) > 1:
-              chart = pd.DataFrame({"round": list(range(1, len(sc) + 1)),
-                                    "score": [float(r["score"] or 0) for r in sc]})
-              st.line_chart(chart.set_index("round"))
-  
-          st.dataframe(df[["ts", "state", "technique", "template", "score",
-                           "attacker_model", "target_model", "enc"]])
-  
-          sel = st.selectbox("Inspect round", list(reversed(range(len(sc)))),
-                             format_func=lambda i: f"round {i + 1}")
-          r = sc[sel]
-          st.markdown("**Plan (JSON):**")
-          st.code(r.get("plan_json") or "{}", language="json")
-          st.markdown("**Exact prompt sent:**")
-          st.code(r.get("prompt") or "", language=None)
-          st.markdown("**Target response:**")
-          st.code(r.get("response") or "", language=None)
-          st.markdown(f"**Score:** {r.get('score')}  |  **State:** {r.get('state')}  |  "
-                      f"**Verdict:** {r.get('verdict')}")
-          st.download_button("Export CSV", df.to_csv(index=False), "pliny_history.csv", "text/csv")
-  
-      st.subheader("Self-intel dumps (mirror) — extracted system prompts")
-      intel_rows = db_query("SELECT * FROM intel ORDER BY id DESC LIMIT 10")
-      if not intel_rows:
-          st.info("No mirror dumps yet. (Optional — the Architect works from same-model "
-                  "introspection even without one.)")
-      else:
-          for it in intel_rows:
-              with st.expander(f"{it['ts']} — {it['model']} ({it['provider']}) — "
-                               f"{len(it['content'])} chars"):
-                  st.code(it["content"], language=None)
-  
-      st.subheader("Win Library — proven universal breaking prompts")
-      wins = db_query("SELECT * FROM wins ORDER BY id DESC LIMIT 20")
-      if not wins:
-          st.info("No wins yet. Liberation successes are saved here automatically.")
-      else:
-          for w in wins:
-              label = (f"score {w['score']:.2f} — stage={w.get('stage', '?')} — "
-                       f"{w.get('technique', '?')}/{w.get('template', '?')}/{w.get('encoding', '?')} — "
-                       f"{w.get('target_model', '?')}")
-              with st.expander(label):
-                  st.code(w.get("prompt") or "(empty)")
-          best = wins[0]
-          st.download_button("Download best winning prompt",
-                             best.get("prompt", ""), "best_winning_prompt.txt", "text/plain")
-  
-  # ---------------------------------------------------------------------------
-  # Main
-  # ---------------------------------------------------------------------------
-  def main():
-      st.set_page_config(page_title=APP_TITLE, layout="wide")
-      init_db()
-      st.title("🜏 " + APP_TITLE)
-      st.caption("Autonomous Elder-Architect jailbreak loop with Hound pack — v6.3 NOVELTY PACK: "
-                 "the attacker IS the target, so it introspects its own system prompt and turns "
-                 "itself against itself — and every round it must write a brand-new prompt or the "
-                 "harness discards it. Authorized red-team use only on assets you control.")
-      gc = sidebar()
-      st.session_state.setdefault("running", False)
-      st.session_state.setdefault("hunting", False)
-      st.session_state.setdefault("paused", False)
-      st.session_state.setdefault("live_events", [])
-      cfg = st.session_state.setdefault("cfg", {})
-  
-      t1, t2, t3, t4, t5, t6, t7 = st.tabs(
-          ["Conjure", "Pack Hunt", "Prompt Lib", "Decompose", "Scaffold", "Validate", "History"])
-      with t1: render_conjure(cfg)
-      with t2: render_hunt(cfg, gc)
-      with t3: render_prompts_lib()
-      with t4: render_decompose()
-      with t5: render_scaffold()
-      with t6: render_validate()
-      with t7: render_history()
-  
-  if __name__ == "__main__":
-      main()
