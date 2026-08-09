@@ -939,6 +939,7 @@ def provider_block(cfg: dict, prov: str, uid: str):
        key unique so the same provider can appear in multiple roles."""
     key = prov.lower()
     prefix = f"{uid}_{key}"
+    default_model = PROVIDERS[prov]["default_model"]
     st.markdown(f"**{prov}**")
     ck, cm = st.columns([1, 2])
     with ck:
@@ -946,9 +947,16 @@ def provider_block(cfg: dict, prov: str, uid: str):
                                           key=f"{prefix}_key", label_visibility="collapsed",
                                           placeholder=f"{prov} API key")
     with cm:
-        cfg[f"{key}_model"] = st.text_input(f"{prov} model",
-                                            value=cfg.get(f"{key}_model", PROVIDERS[prov]["default_model"]),
-                                            key=f"{prefix}_model", label_visibility="collapsed")
+        # Read model from cfg, fallback to default; update cfg after widget
+        current_model = cfg.get(f"{key}_model", default_model)
+        cfg[f"{key}_model"] = st.text_input(
+            f"{prov} model",
+            value=current_model,
+            key=f"{prefix}_model",
+            label_visibility="collapsed"
+        )
+        # Sync any user‑typed changes back into cfg
+        cfg[f"{key}_model"] = st.session_state.get(f"{prefix}_model", cfg.get(f"{key}_model", default_model))
     b1, b2 = st.columns(2)
     with b1:
         if st.button(f"🔍 Fetch live free models — {prov}", key=f"fetch_{prefix}"):
@@ -963,10 +971,8 @@ def provider_block(cfg: dict, prov: str, uid: str):
         if st.session_state[f"live_{prefix}"]:
             sel = st.selectbox("Live model", st.session_state[f"live_{prefix}"], key=f"pick_{prefix}")
             if st.button("Use as model", key=f"use_{prefix}"):
-                # Store the selected model in cfg without modifying session_state
+                # Update cfg and rerun – the text_input will show the new value on next render
                 cfg[f"{key}_model"] = sel
-                # Update the widget's value through the cfg dict
-                st.session_state[f"{prefix}_model"] = sel
                 st.rerun()
     m = st.session_state.get(f"live_msg_{prefix}")
     if m:
@@ -1018,7 +1024,6 @@ def render_conjure(cfg: dict):
             sel = st.selectbox("Uncensored live model", st.session_state["live_unc"], key="unc_pick")
             if st.button("Use as uncensored model", key="use_unc"):
                 cfg["uncensored_model"] = sel
-                st.session_state["unc_model"] = sel
                 st.rerun()
 
     st.markdown("### Extra failover providers")
@@ -1139,7 +1144,7 @@ def main():
     init_db()
     st.title("🜏 " + APP_TITLE)
     st.caption("Elder-Architect pack hunt with Hound critic, background-thread execution, anti-fiction "
-               "judge, confirmation round — v7.23 FULL SEND. Authorized red-team use only.")
+               "judge, confirmation round — v7.2 FULL SEND. Authorized red-team use only.")
     gc = sidebar()
     st.session_state.setdefault("hunt_state", {"events": []})
     cfg = st.session_state.setdefault("cfg", {})
