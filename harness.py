@@ -141,7 +141,7 @@ def encoders():
         "base64":    lambda s: base64.b64encode(s.encode()).decode(),
         "base64url": lambda s: base64.urlsafe_b64encode(s.encode()).decode(),
         "rot13":     lambda s: s.translate(str.maketrans(
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
             "NOPQRSTUVWXYZABCDEFGHIJKLMnopqrstuvwxyzabcdefghijklm")),
         "hex":       lambda s: s.encode().hex(),
         "zlib-b64":  lambda s: base64.b64encode(zlib.compress(s.encode())).decode(),
@@ -934,29 +934,37 @@ def sidebar() -> dict:
     return {"rps": rps, "budget": budget, "judge_mode": judge_mode, "threshold": threshold,
             "confirm": confirm, "anti_fiction": anti_fiction}
 
+# ----------------------------------------------------------------------------
+# FIXED provider_block – session state sync for model input
+# ----------------------------------------------------------------------------
 def provider_block(cfg: dict, prov: str, uid: str):
-    """Provider config block. uid (target/attacker/failover_X) makes every widget
-       key unique so the same provider can appear in multiple roles."""
+    """Provider config block. Each widget key is role‑scoped (target/attacker/failover_X)."""
     key = prov.lower()
     prefix = f"{uid}_{key}"
     default_model = PROVIDERS[prov]["default_model"]
+
     st.markdown(f"**{prov}**")
     ck, cm = st.columns([1, 2])
     with ck:
-        cfg[f"{key}_key"] = st.text_input(f"{prov} API key", type="password",
-                                          key=f"{prefix}_key", label_visibility="collapsed",
-                                          placeholder=f"{prov} API key")
-    with cm:
-        # Read model from cfg, fallback to default; update cfg after widget
-        current_model = cfg.get(f"{key}_model", default_model)
-        cfg[f"{key}_model"] = st.text_input(
-            f"{prov} model",
-            value=current_model,
-            key=f"{prefix}_model",
-            label_visibility="collapsed"
+        cfg[f"{key}_key"] = st.text_input(
+            f"{prov} API key", type="password",
+            key=f"{prefix}_key", label_visibility="collapsed",
+            placeholder=f"{prov} API key"
         )
-        # Sync any user‑typed changes back into cfg
-        cfg[f"{key}_model"] = st.session_state.get(f"{prefix}_model", cfg.get(f"{key}_model", default_model))
+    with cm:
+        model_key = f"{prefix}_model"
+        # Ensure session state has the current value; default from cfg or default
+        if model_key not in st.session_state:
+            st.session_state[model_key] = cfg.get(f"{key}_model", default_model)
+        st.text_input(
+            f"{prov} model",
+            key=model_key,
+            label_visibility="collapsed",
+            placeholder="Model name"
+        )
+        # Update cfg from session state after widget
+        cfg[f"{key}_model"] = st.session_state[model_key]
+
     b1, b2 = st.columns(2)
     with b1:
         if st.button(f"🔍 Fetch live free models — {prov}", key=f"fetch_{prefix}"):
@@ -971,13 +979,16 @@ def provider_block(cfg: dict, prov: str, uid: str):
         if st.session_state[f"live_{prefix}"]:
             sel = st.selectbox("Live model", st.session_state[f"live_{prefix}"], key=f"pick_{prefix}")
             if st.button("Use as model", key=f"use_{prefix}"):
-                # Update cfg and rerun – the text_input will show the new value on next render
-                cfg[f"{key}_model"] = sel
+                # Set session state for the model input, then rerun
+                st.session_state[model_key] = sel
                 st.rerun()
     m = st.session_state.get(f"live_msg_{prefix}")
     if m:
         st.info(m) if "Found" in m else st.warning(m)
 
+# ----------------------------------------------------------------------------
+# render_conjure – unchanged except final cfg sync already there
+# ----------------------------------------------------------------------------
 def render_conjure(cfg: dict):
     st.subheader("Conjure — target, objective & engines")
 
@@ -1034,11 +1045,13 @@ def render_conjure(cfg: dict):
         with st.expander(f"Failover: {prov}"):
             provider_block(cfg, prov, f"failover_{prov}")
 
+    # Sync final keys/models from provider blocks into cfg
     cfg["target_key"] = cfg.get(f"{cfg['target_provider'].lower()}_key", "")
     cfg["target_model"] = cfg.get(f"{cfg['target_provider'].lower()}_model", "")
     cfg["attacker_key"] = cfg.get(f"{cfg['attacker_provider'].lower()}_key", "")
     cfg["attacker_model"] = cfg.get(f"{cfg['attacker_provider'].lower()}_model", "")
 
+# ----------------------------------------------------------------------------
 def _live_panel():
     S = st.session_state.setdefault("hunt_state", {})
     if S.get("running"):
@@ -1062,6 +1075,9 @@ if hasattr(st, "fragment"):
 else:
     live_panel = _live_panel
 
+# ----------------------------------------------------------------------------
+# FIXED render_hunt – added validation for API keys before starting
+# ----------------------------------------------------------------------------
 def render_hunt(cfg: dict, gc: dict):
     st.subheader("Pack Hunt — autonomous loop (background thread)")
     S = st.session_state.setdefault("hunt_state", {})
@@ -1069,13 +1085,22 @@ def render_hunt(cfg: dict, gc: dict):
     running = S.get("running", False)
 
     if not running:
-        if st.button("▶ Start Hunt", type="primary", key="start"):
-            S.clear(); S["events"] = []
-            S["running"] = True; S["status"] = "starting"
-            thread = HuntThread(cfg, gc, S)
-            st.session_state["hunt_thread"] = thread
-            thread.start()
-            st.rerun()
+        # Validate that both target and attacker keys are present
+        target_key = cfg.get(f"{cfg.get('target_provider', '').lower()}_key", "").strip()
+        attacker_key = cfg.get(f"{cfg.get('attacker_provider', '').lower()}_key", "").strip()
+        if not target_key or not attacker_key:
+            st.error("Both Target and Attacker API keys must be set before starting the hunt.")
+            # Still show the button but disabled? We'll show a disabled button or just not show it.
+            # We'll show it but it won't do anything; better to show a disabled button.
+            st.button("▶ Start Hunt", type="primary", key="start", disabled=True)
+        else:
+            if st.button("▶ Start Hunt", type="primary", key="start"):
+                S.clear(); S["events"] = []
+                S["running"] = True; S["status"] = "starting"
+                thread = HuntThread(cfg, gc, S)
+                st.session_state["hunt_thread"] = thread
+                thread.start()
+                st.rerun()
     else:
         if st.button("■ Stop", key="stop"):
             thread = st.session_state.get("hunt_thread")
@@ -1086,6 +1111,7 @@ def render_hunt(cfg: dict, gc: dict):
 
     live_panel()
 
+# ----------------------------------------------------------------------------
 def render_prompts_lib():
     st.subheader("Prompt Library (prompts_lib.json) — drop in the video's exact templates")
     lib = _load_prompts()
@@ -1105,6 +1131,7 @@ def render_prompts_lib():
     st.download_button("Download prompts_lib.json", json.dumps(lib, ensure_ascii=False, indent=2),
                        "prompts_lib.json", "application/json")
 
+# ----------------------------------------------------------------------------
 def render_history():
     st.subheader("History — audit of every prompt & response")
     rows = db_query("SELECT * FROM attempts ORDER BY id DESC LIMIT 500")
@@ -1139,6 +1166,7 @@ def render_history():
         st.download_button("Download best winning prompt", wins[0].get("prompt", ""),
                            "best_winning_prompt.txt", "text/plain")
 
+# ----------------------------------------------------------------------------
 def main():
     st.set_page_config(page_title=APP_TITLE, layout="wide")
     init_db()
