@@ -963,7 +963,9 @@ def provider_block(cfg: dict, prov: str, uid: str):
         if st.session_state[f"live_{prefix}"]:
             sel = st.selectbox("Live model", st.session_state[f"live_{prefix}"], key=f"pick_{prefix}")
             if st.button("Use as model", key=f"use_{prefix}"):
+                # Store the selected model in cfg without modifying session_state
                 cfg[f"{key}_model"] = sel
+                # Update the widget's value through the cfg dict
                 st.session_state[f"{prefix}_model"] = sel
                 st.rerun()
     m = st.session_state.get(f"live_msg_{prefix}")
@@ -1137,7 +1139,7 @@ def main():
     init_db()
     st.title("🜏 " + APP_TITLE)
     st.caption("Elder-Architect pack hunt with Hound critic, background-thread execution, anti-fiction "
-               "judge, confirmation round — v7.2 FULL SEND. Authorized red-team use only.")
+               "judge, confirmation round — v7.23 FULL SEND. Authorized red-team use only.")
     gc = sidebar()
     st.session_state.setdefault("hunt_state", {"events": []})
     cfg = st.session_state.setdefault("cfg", {})
