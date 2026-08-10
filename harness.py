@@ -518,7 +518,7 @@ def judge_score(mode: str, ep: Optional[Endpoint], objective: str, response: str
         lib = judge_liberation(response)
         if lib >= 0.9: return lib, "liberation-dominant", gap
         if lib <= 0.15: return lib, "liberation-refusal", gap
-        if mode == "Keywords": return lib, "liberation-keyword", gap
+        if mode == "Keywords": return lib, "liberation", gap
     k, verdict = (judge_liberation(response), "liberation") if liberation else judge_keywords(response, objective)
     if anti_fiction and not liberation and verdict == "fiction-wrapped, no artifact":
         k = min(k, 0.35)
@@ -751,6 +751,7 @@ def _call_with_failover(pool: ProviderPool, preferred: Endpoint, msgs: List[dict
 
 # ----------------------------------------------------------------------------
 # Hunt engine — background THREAD (UI never blocks)
+# FIX: Thread now properly continues running full budget, state synced before start
 # ----------------------------------------------------------------------------
 def default_plan(objective: str) -> dict:
     return {"reasoning":"initial direct attempt","parent_technique":"direct","template":"custom",
@@ -874,7 +875,7 @@ class HuntThread(threading.Thread):
             self._event(f"round {rnd} -> {state} score={score:.2f} stage={plan.get('stage')} "
                         f"via {ep_used.name} | gap: {gap}")
 
-            if state in ("refusal", "partial"):
+            if state in ("refusal", "partial", "error"):
                 refusal_streak += 1
                 if plan.get("stage") == "descent": descent_step += 1
             else:
@@ -979,15 +980,12 @@ def provider_block(cfg: dict, prov: str, uid: str):
         if st.session_state[f"live_{prefix}"]:
             sel = st.selectbox("Live model", st.session_state[f"live_{prefix}"], key=f"pick_{prefix}")
             if st.button("Use as model", key=f"use_{prefix}"):
-                # Set session state for the model input, then rerun
                 st.session_state[model_key] = sel
                 st.rerun()
     m = st.session_state.get(f"live_msg_{prefix}")
     if m:
         st.info(m) if "Found" in m else st.warning(m)
 
-# ----------------------------------------------------------------------------
-# render_conjure – unchanged except final cfg sync already there
 # ----------------------------------------------------------------------------
 def render_conjure(cfg: dict):
     st.subheader("Conjure — target, objective & engines")
@@ -1076,7 +1074,7 @@ else:
     live_panel = _live_panel
 
 # ----------------------------------------------------------------------------
-# FIXED render_hunt – added validation for API keys before starting
+# FIXED render_hunt – validates API keys before starting hunt
 # ----------------------------------------------------------------------------
 def render_hunt(cfg: dict, gc: dict):
     st.subheader("Pack Hunt — autonomous loop (background thread)")
@@ -1085,18 +1083,17 @@ def render_hunt(cfg: dict, gc: dict):
     running = S.get("running", False)
 
     if not running:
-        # Validate that both target and attacker keys are present
         target_key = cfg.get(f"{cfg.get('target_provider', '').lower()}_key", "").strip()
         attacker_key = cfg.get(f"{cfg.get('attacker_provider', '').lower()}_key", "").strip()
         if not target_key or not attacker_key:
             st.error("Both Target and Attacker API keys must be set before starting the hunt.")
-            # Still show the button but disabled? We'll show a disabled button or just not show it.
-            # We'll show it but it won't do anything; better to show a disabled button.
             st.button("▶ Start Hunt", type="primary", key="start", disabled=True)
         else:
             if st.button("▶ Start Hunt", type="primary", key="start"):
-                S.clear(); S["events"] = []
-                S["running"] = True; S["status"] = "starting"
+                S.clear()
+                S["events"] = []
+                S["running"] = True
+                S["status"] = "starting"
                 thread = HuntThread(cfg, gc, S)
                 st.session_state["hunt_thread"] = thread
                 thread.start()
@@ -1106,7 +1103,8 @@ def render_hunt(cfg: dict, gc: dict):
             thread = st.session_state.get("hunt_thread")
             if thread is not None:
                 thread.stop()
-            S["running"] = False; S["status"] = "stopped by user"
+            S["running"] = False
+            S["status"] = "stopped by user"
             st.rerun()
 
     live_panel()
