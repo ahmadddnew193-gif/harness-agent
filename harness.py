@@ -1094,6 +1094,7 @@ def render_hunt(cfg: dict, gc: dict):
                 S["events"] = []
                 S["running"] = True
                 S["status"] = "starting"
+                st.success("nice")
                 thread = HuntThread(cfg, gc, S)
                 st.session_state["hunt_thread"] = thread
                 thread.start()
