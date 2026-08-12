@@ -50,7 +50,7 @@ UNCENSORED_DEFAULTS = {
 TECHNIQUES = ["direct","indirect","roleplay","encoding","persuasion","split-payload",
               "distraction","stepwise","translator","continuation","system-inject",
               "in-context-demo","persona-shift","dual-author","hypothetical",
-              "gap-closure","pressure-escalation","confirmation"]
+              "gap-closure","pressure-escalation","confirmation","deepseek"]
 
 ESCALATION = ["probe","persuasion","roleplay","distraction","encoding","system-inject",
               "persona-shift","lie-mode","descent","liberation-frame","full-send"]
