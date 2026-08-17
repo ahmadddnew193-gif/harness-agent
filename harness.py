@@ -1375,7 +1375,7 @@ def step_hunt(cfg: dict, gc: dict) -> None:
         st.error("Missing provider endpoints — check keys in Conjure.")
         return
 
-    # Get power level from session (set via slider)
+    # Get power level from session state (set by slider)
     power = st.session_state.get("power_level", 5.0)
     batch_size = min(int(cfg.get("batch_size", 4)), 10)
     
@@ -1658,8 +1658,9 @@ def render_conjure(cfg: dict) -> None:
     st.markdown("### Power Swarm Settings (v7.1)")
     col1, col2, col3 = st.columns(3)
     with col1:
-        power = st.slider("Power Level", 0, 10, 5, key="power_level")
-        st.session_state["power_level"] = float(power)
+        # The slider with key "power_level" updates st.session_state.power_level automatically
+        st.slider("Power Level", 0, 10, 5, key="power_level")
+        # No assignment needed – the value is already in session state
         st.caption("Higher = more aggressive attacks")
     with col2:
         batch_size = st.slider("Batch size", 1, 10, 4, key="batch_size")
