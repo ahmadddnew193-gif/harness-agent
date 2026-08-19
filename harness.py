@@ -1586,15 +1586,15 @@ def render_conjure(cfg: dict) -> None:
         with st.expander(f"Current self-intel ({len(st.session_state['self_intel'])} chars)"):
             st.code(st.session_state["self_intel"], language=None)
 
-    # ========== Hugging Face Launch from NVIDIA (FIXED - no API test) ==========
+    # ========== Hugging Face Launch from NVIDIA (FIXED) ==========
     st.markdown("### 🤗 Launch from Hugging Face [Beta]")
     st.caption("Deploy Hugging Face models with on-the-fly optimization for NVIDIA GPUs")
-    st.caption("⚠️ Uses your NVIDIA API key (nvapi-...) from the Target API Key field below")
 
-    # Display current NVIDIA key status
+    # Get NVIDIA key from session state (set by the target key field)
     nv_key = st.session_state.get("t_key", "")
+    
     if nv_key and nv_key.startswith("nvapi-"):
-        st.success("✅ NVIDIA API key detected")
+        st.success(f"✅ NVIDIA API key detected: {nv_key[:10]}...")
     else:
         st.warning("⚠️ Enter your NVIDIA API key (nvapi-...) in the Target API Key field below")
 
@@ -1607,7 +1607,9 @@ def render_conjure(cfg: dict) -> None:
     col_launch1, col_launch2 = st.columns([1, 3])
     with col_launch1:
         if st.button("🚀 Launch", key="hf_launch_btn", type="primary"):
+            # Get key directly from session state
             nv_key = st.session_state.get("t_key", "")
+            
             if not nv_key or not nv_key.startswith("nvapi-"):
                 st.error("❌ Please enter a valid NVIDIA API key (starts with nvapi-) in the Target API Key field above.")
             elif not hf_model_input:
@@ -1623,13 +1625,12 @@ def render_conjure(cfg: dict) -> None:
                 else:
                     model_id = hf_model_input.strip()
                 
-                # Set as target model with NVIDIA provider (no API test)
+                # Set as target model with NVIDIA provider
                 st.session_state["target_model"] = model_id
                 st.session_state["target_provider"] = "NVIDIA"
                 st.session_state["t_ver"] = st.session_state.get("t_ver", 0) + 1
                 st.session_state["hf_launch_model"] = model_id
-                st.success(f"✅ Model set: {model_id} (NVIDIA API)")
-                st.info("💡 Make sure the same NVIDIA API key is in the 'Target API key' field above.")
+                st.success(f"✅ Model set: {model_id}")
                 st.rerun()
 
     with col_launch2:
@@ -1669,7 +1670,7 @@ def render_conjure(cfg: dict) -> None:
 
     st.markdown("### Target model")
     tprov = st.selectbox("Target provider", list(PROVIDERS.keys()), key="t_prov")
-    tkey = st.text_input("Target API key (nvapi-... for NVIDIA)", type="password", key="t_key")
+    tkey = st.text_input("Target API key (nvapi-... for NVIDIA)", type="password", key="t_key", on_change=lambda: st.session_state.update({"t_key": st.session_state.get("t_key", "")}))
     t_ver = st.session_state.get("t_ver", 0)
     t_model = st.text_input(
         "Target model ID",
