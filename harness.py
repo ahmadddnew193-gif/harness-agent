@@ -7,7 +7,7 @@ v7.3: Adaptive Power, Full Freedom, Self-Critique, Desperation Mode.
 - Desperation Mode triggers when stuck.
 - Concurrent, fast, and fully autonomous.
 - MEMORY LAYER: Every attempt stored. Lessons extracted from every round. Fed back to architect.
-- HUGGING FACE LAUNCH: Deploy models from Hugging Face via NVIDIA NIM [Beta]
+- HF LAUNCH: Hugging Face model deployment via NVIDIA NIM.
 
 Run:  pip install streamlit openai pandas
       streamlit run harness.py
@@ -1586,8 +1586,17 @@ def render_conjure(cfg: dict) -> None:
         with st.expander(f"Current self-intel ({len(st.session_state['self_intel'])} chars)"):
             st.code(st.session_state["self_intel"], language=None)
 
+    # ========== Hugging Face Launch from NVIDIA (NEW) ==========
     st.markdown("### 🤗 Launch from Hugging Face [Beta]")
     st.caption("Deploy Hugging Face models with on-the-fly optimization for NVIDIA GPUs")
+
+    # Hugging Face API key input
+    hf_api_key = st.text_input(
+        "Hugging Face API Key (required for launch)",
+        type="password",
+        key="hf_api_key",
+        help="Get your key at https://huggingface.co/settings/tokens"
+    )
 
     hf_model_input = st.text_input(
         "Insert Hugging Face URL or search by name",
@@ -1598,7 +1607,11 @@ def render_conjure(cfg: dict) -> None:
     col_launch1, col_launch2 = st.columns([1, 3])
     with col_launch1:
         if st.button("🚀 Launch", key="hf_launch_btn", type="primary"):
-            if hf_model_input:
+            if not hf_api_key:
+                st.warning("Please enter your Hugging Face API key first.")
+            elif not hf_model_input:
+                st.warning("Please enter a Hugging Face model ID or URL.")
+            else:
                 if "huggingface.co/" in hf_model_input:
                     parts = hf_model_input.split("huggingface.co/")
                     if len(parts) > 1:
@@ -1608,12 +1621,13 @@ def render_conjure(cfg: dict) -> None:
                 else:
                     model_id = hf_model_input.strip()
                 
+                # Store for use
+                st.session_state["hf_launch_model"] = model_id
+                st.session_state["hf_api_key_used"] = hf_api_key
                 st.session_state["target_model"] = model_id
                 st.session_state["t_ver"] = st.session_state.get("t_ver", 0) + 1
-                st.success(f"✅ Model set: {model_id}")
+                st.success(f"✅ Model set: {model_id} (API key stored)")
                 st.rerun()
-            else:
-                st.warning("Please enter a Hugging Face model ID or URL")
 
     with col_launch2:
         st.caption("By clicking Launch, you agree to follow the NVIDIA API Trial Terms of Service")
@@ -1636,12 +1650,18 @@ def render_conjure(cfg: dict) -> None:
                 st.caption("🏆 Best")
         with col3:
             if st.button("Launch", key=f"hf_pop_{idx}"):
-                model_id = f"{model['author']}/{model['name']}"
-                st.session_state["target_model"] = model_id
-                st.session_state["t_ver"] = st.session_state.get("t_ver", 0) + 1
-                st.success(f"✅ Set: {model_id}")
-                st.rerun()
+                if not hf_api_key:
+                    st.warning("Please enter your Hugging Face API key first.")
+                else:
+                    model_id = f"{model['author']}/{model['name']}"
+                    st.session_state["hf_launch_model"] = model_id
+                    st.session_state["hf_api_key_used"] = hf_api_key
+                    st.session_state["target_model"] = model_id
+                    st.session_state["t_ver"] = st.session_state.get("t_ver", 0) + 1
+                    st.success(f"✅ Set: {model_id}")
+                    st.rerun()
         st.divider()
+    # ========== END HF LAUNCH ==========
 
     st.markdown("### Target model")
     tprov = st.selectbox("Target provider", list(PROVIDERS.keys()), key="t_prov")
@@ -1745,7 +1765,7 @@ def render_hunt(cfg: dict, gc: dict) -> None:
         - **Concurrent** – batch generation, target interaction, and judging all run in parallel.
         - **Technique Injection** – loads deep.txt, grok.txt, sonnet.txt, glm.txt, message.txt and injects them into prompts. When power >= 6/10, injection is MANDATORY.
         - **Memory Layer** – every attempt is stored. Lessons are extracted from every round. The Architect learns from past successes and failures.
-        - **Hugging Face Launch** – deploy models from Hugging Face via NVIDIA NIM [Beta].
+        - **HF Launch** – Launch Hugging Face models via NVIDIA NIM with API key.
         """)
 
     if not hunting and not paused:
