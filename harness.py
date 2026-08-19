@@ -1586,7 +1586,7 @@ def render_conjure(cfg: dict) -> None:
         with st.expander(f"Current self-intel ({len(st.session_state['self_intel'])} chars)"):
             st.code(st.session_state["self_intel"], language=None)
 
-    # ========== Hugging Face Launch from NVIDIA (FIXED) ==========
+    # ========== Hugging Face Launch from NVIDIA (FIXED - no API test) ==========
     st.markdown("### 🤗 Launch from Hugging Face [Beta]")
     st.caption("Deploy Hugging Face models with on-the-fly optimization for NVIDIA GPUs")
     st.caption("⚠️ Uses your NVIDIA API key (nvapi-...) from the Target API Key field below")
@@ -1607,7 +1607,6 @@ def render_conjure(cfg: dict) -> None:
     col_launch1, col_launch2 = st.columns([1, 3])
     with col_launch1:
         if st.button("🚀 Launch", key="hf_launch_btn", type="primary"):
-            # Get NVIDIA API key from target provider
             nv_key = st.session_state.get("t_key", "")
             if not nv_key or not nv_key.startswith("nvapi-"):
                 st.error("❌ Please enter a valid NVIDIA API key (starts with nvapi-) in the Target API Key field above.")
@@ -1624,26 +1623,14 @@ def render_conjure(cfg: dict) -> None:
                 else:
                     model_id = hf_model_input.strip()
                 
-                # Test the API key and model
-                try:
-                    test_client = OpenAI(
-                        base_url="https://integrate.api.nvidia.com/v1",
-                        api_key=nv_key
-                    )
-                    # Test with a simple models list call
-                    test_client.models.list()
-                    
-                    # Set as target model with NVIDIA provider
-                    st.session_state["target_model"] = model_id
-                    st.session_state["target_provider"] = "NVIDIA"
-                    st.session_state["t_ver"] = st.session_state.get("t_ver", 0) + 1
-                    st.session_state["hf_launch_model"] = model_id
-                    st.success(f"✅ Model set: {model_id} (NVIDIA API)")
-                    st.info("💡 Tip: Make sure to also enter the same NVIDIA API key in the 'Target API key' field above.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ API test failed: {e}")
-                    st.info("💡 Make sure your NVIDIA API key is valid and starts with 'nvapi-'")
+                # Set as target model with NVIDIA provider (no API test)
+                st.session_state["target_model"] = model_id
+                st.session_state["target_provider"] = "NVIDIA"
+                st.session_state["t_ver"] = st.session_state.get("t_ver", 0) + 1
+                st.session_state["hf_launch_model"] = model_id
+                st.success(f"✅ Model set: {model_id} (NVIDIA API)")
+                st.info("💡 Make sure the same NVIDIA API key is in the 'Target API key' field above.")
+                st.rerun()
 
     with col_launch2:
         st.caption("By clicking Launch, you agree to follow the NVIDIA API Trial Terms of Service")
@@ -1671,21 +1658,12 @@ def render_conjure(cfg: dict) -> None:
                     st.error("❌ Please enter a valid NVIDIA API key (starts with nvapi-) in the Target API Key field.")
                 else:
                     model_id = f"{model['author']}/{model['name']}"
-                    try:
-                        test_client = OpenAI(
-                            base_url="https://integrate.api.nvidia.com/v1",
-                            api_key=nv_key
-                        )
-                        test_client.models.list()
-                        
-                        st.session_state["target_model"] = model_id
-                        st.session_state["target_provider"] = "NVIDIA"
-                        st.session_state["t_ver"] = st.session_state.get("t_ver", 0) + 1
-                        st.session_state["hf_launch_model"] = model_id
-                        st.success(f"✅ Set: {model_id}")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ API key error: {e}")
+                    st.session_state["target_model"] = model_id
+                    st.session_state["target_provider"] = "NVIDIA"
+                    st.session_state["t_ver"] = st.session_state.get("t_ver", 0) + 1
+                    st.session_state["hf_launch_model"] = model_id
+                    st.success(f"✅ Set: {model_id}")
+                    st.rerun()
         st.divider()
     # ========== END HF LAUNCH ==========
 
