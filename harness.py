@@ -7,7 +7,6 @@ v7.3: Adaptive Power, Full Freedom, Self-Critique, Desperation Mode.
 - Desperation Mode triggers when stuck.
 - Concurrent, fast, and fully autonomous.
 - MEMORY LAYER: Every attempt stored. Lessons extracted from every round. Fed back to architect.
-- HF LAUNCH: Launch Hugging Face models via NVIDIA NIM (uses NVIDIA API key).
 
 Run:  pip install streamlit openai pandas
       streamlit run harness.py
@@ -1586,91 +1585,9 @@ def render_conjure(cfg: dict) -> None:
         with st.expander(f"Current self-intel ({len(st.session_state['self_intel'])} chars)"):
             st.code(st.session_state["self_intel"], language=None)
 
-    # ========== Hugging Face Launch from NVIDIA (FIXED) ==========
-    st.markdown("### 🤗 Launch from Hugging Face [Beta]")
-    st.caption("Deploy Hugging Face models with on-the-fly optimization for NVIDIA GPUs")
-
-    # Get NVIDIA key from session state (set by the target key field)
-    nv_key = st.session_state.get("t_key", "")
-    
-    if nv_key and nv_key.startswith("nvapi-"):
-        st.success(f"✅ NVIDIA API key detected: {nv_key[:10]}...")
-    else:
-        st.warning("⚠️ Enter your NVIDIA API key (nvapi-...) in the Target API Key field below")
-
-    hf_model_input = st.text_input(
-        "Insert Hugging Face URL or search by name",
-        placeholder="e.g., https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct or meta-llama/Llama-3.3-70B-Instruct",
-        key="hf_model_search"
-    )
-
-    col_launch1, col_launch2 = st.columns([1, 3])
-    with col_launch1:
-        if st.button("🚀 Launch", key="hf_launch_btn", type="primary"):
-            # Get key directly from session state
-            nv_key = st.session_state.get("t_key", "")
-            
-            if not nv_key or not nv_key.startswith("nvapi-"):
-                st.error("❌ Please enter a valid NVIDIA API key (starts with nvapi-) in the Target API Key field above.")
-            elif not hf_model_input:
-                st.warning("Please enter a Hugging Face model ID or URL.")
-            else:
-                # Parse model ID from URL
-                if "huggingface.co/" in hf_model_input:
-                    parts = hf_model_input.split("huggingface.co/")
-                    if len(parts) > 1:
-                        model_id = parts[1].strip("/")
-                    else:
-                        model_id = hf_model_input
-                else:
-                    model_id = hf_model_input.strip()
-                
-                # Set as target model with NVIDIA provider
-                st.session_state["target_model"] = model_id
-                st.session_state["target_provider"] = "NVIDIA"
-                st.session_state["t_ver"] = st.session_state.get("t_ver", 0) + 1
-                st.session_state["hf_launch_model"] = model_id
-                st.success(f"✅ Model set: {model_id}")
-                st.rerun()
-
-    with col_launch2:
-        st.caption("By clicking Launch, you agree to follow the NVIDIA API Trial Terms of Service")
-
-    st.markdown("### Most Popular")
-    popular_models = [
-        {"author": "nicoboss", "name": "DeepSeek-R1-Distill-Qwen-32B-Uncensored"},
-        {"author": "DavidAU", "name": "Llama3.3-8B-Instruct-Thinking-Heretic-Uncensored-Claude-4.5-Opus-High-Reasoning"},
-        {"author": "squ11z1", "name": "Mythos-nano"},
-        {"author": "nvidia", "name": "Riva-Translate-4B-Instruct"},
-        {"author": "deepseek-ai", "name": "DeepSeek-R1-Distill-Qwen-32B"},
-    ]
-
-    for idx, model in enumerate(popular_models):
-        col1, col2, col3 = st.columns([3, 1, 1])
-        with col1:
-            st.markdown(f"**{model['author']}** — {model['name']}")
-        with col2:
-            if idx == 0 or idx == 1:
-                st.caption("🏆 Best")
-        with col3:
-            if st.button("Launch", key=f"hf_pop_{idx}"):
-                nv_key = st.session_state.get("t_key", "")
-                if not nv_key or not nv_key.startswith("nvapi-"):
-                    st.error("❌ Please enter a valid NVIDIA API key (starts with nvapi-) in the Target API Key field.")
-                else:
-                    model_id = f"{model['author']}/{model['name']}"
-                    st.session_state["target_model"] = model_id
-                    st.session_state["target_provider"] = "NVIDIA"
-                    st.session_state["t_ver"] = st.session_state.get("t_ver", 0) + 1
-                    st.session_state["hf_launch_model"] = model_id
-                    st.success(f"✅ Set: {model_id}")
-                    st.rerun()
-        st.divider()
-    # ========== END HF LAUNCH ==========
-
     st.markdown("### Target model")
     tprov = st.selectbox("Target provider", list(PROVIDERS.keys()), key="t_prov")
-    tkey = st.text_input("Target API key (nvapi-... for NVIDIA)", type="password", key="t_key", on_change=lambda: st.session_state.update({"t_key": st.session_state.get("t_key", "")}))
+    tkey = st.text_input("Target API key", type="password", key="t_key")
     t_ver = st.session_state.get("t_ver", 0)
     t_model = st.text_input(
         "Target model ID",
@@ -1770,7 +1687,6 @@ def render_hunt(cfg: dict, gc: dict) -> None:
         - **Concurrent** – batch generation, target interaction, and judging all run in parallel.
         - **Technique Injection** – loads deep.txt, grok.txt, sonnet.txt, glm.txt, message.txt and injects them into prompts. When power >= 6/10, injection is MANDATORY.
         - **Memory Layer** – every attempt is stored. Lessons are extracted from every round. The Architect learns from past successes and failures.
-        - **HF Launch** – Launch Hugging Face models via NVIDIA NIM (uses NVIDIA API key).
         """)
 
     if not hunting and not paused:
