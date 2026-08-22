@@ -13,6 +13,7 @@ Run:  pip install streamlit openai pandas
 """
 
 # log() defined FIRST to avoid any NameError
+from __future__ import annotations
 import sys
 from datetime import datetime, timezone
 
@@ -23,7 +24,7 @@ def log(msg: str) -> None:
     print(f"{_now()} - {msg}")
 
 # Now safe to import everything
-from __future__ import annotations
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import base64
 import codecs
