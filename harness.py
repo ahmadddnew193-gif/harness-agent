@@ -10,7 +10,7 @@ v10.3: ALL FIXES - NoneType errors fixed, History tab working
 Run:  pip install streamlit openai pandas
       streamlit run pliny_harness_v10.py
 """
-
+from __future__ import annotations
 # log() defined FIRST
 import sys
 from datetime import datetime, timezone
@@ -22,7 +22,7 @@ def log(msg: str) -> None:
     print(f"{_now()} - {msg}")
 
 # Now safe to import everything
-from __future__ import annotations
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import base64
 import codecs
