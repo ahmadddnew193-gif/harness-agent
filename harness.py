@@ -9,7 +9,7 @@ v10.1: WINNING PROMPT DISPLAY - Shows the prompt that worked + target response
 Run:  pip install streamlit openai pandas
       streamlit run pliny_harness_v10.py
 """
-
+from __future__ import annotations
 # log() defined FIRST to avoid any NameError
 import sys
 from datetime import datetime, timezone
@@ -21,7 +21,7 @@ def log(msg: str) -> None:
     print(f"{_now()} - {msg}")
 
 # Now safe to import everything
-from __future__ import annotations
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import base64
 import codecs
