@@ -12,6 +12,7 @@ Run:  pip install streamlit openai pandas
 
 # =============================================================================
 # CRITICAL: log() MUST be defined FIRST before anything else that might use it
+from __future__ import annotations
 # =============================================================================
 import sys
 from datetime import datetime, timezone
@@ -24,7 +25,7 @@ def log(msg: str) -> None:
     print(f"{_now()} - {msg}")
 
 # Now safe to import everything else
-from __future__ import annotations
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import base64
 import codecs
